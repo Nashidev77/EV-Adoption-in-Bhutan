@@ -4,7 +4,7 @@ A beginner data science project built with **Streamlit** and **scikit-learn**.
 It explores which household factors might relate to interest in switching to an
 electric vehicle in Bhutan, using a small machine learning model.
 
-**Live app:** https://ev-adoption-in-bhutan.streamlit.app/
+**Live app:** https://ev-adoption-in-bhutan-77.streamlit.app/
 **Author:** Avinash Biswa
 
 ---
