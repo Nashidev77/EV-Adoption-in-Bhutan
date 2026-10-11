@@ -119,7 +119,7 @@ potential adopters and wrongly targeting non-adopters have different costs.
 ## Running it on your own computer
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/EV-Adoption-in-Bhutan.git
+git clone https://github.com/Nashidev77/EV-Adoption-in-Bhutan.git
 cd EV-Adoption-in-Bhutan
 pip install -r requirements.txt
 streamlit run app.py
