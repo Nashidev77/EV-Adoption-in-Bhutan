@@ -51,15 +51,19 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Slide the page content up and fade it in when a tab is opened. */
     @keyframes fadeUp {
         from { opacity: 0; transform: translateY(14px); }
         to   { opacity: 1; transform: none; }
     }
-    .block-container {
-        animation: fadeUp 0.45s ease both;
-        padding-top: 2.5rem;
+
+    /* Slide each tab's content up and fade it in when that tab is opened.
+       Streamlit keeps all four tabs in the page and hides the inactive ones,
+       so the animation replays every time a panel is shown again. */
+    .stTabs [data-baseweb="tab-panel"] {
+        animation: fadeUp 0.4s ease both;
     }
+
+    .block-container { padding-top: 2.5rem; }
 
     /* Give the number cards a soft border and lift them on hover. */
     div[data-testid="stMetric"] {
