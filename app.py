@@ -6,7 +6,9 @@ IMPORTANT: this app uses SYNTHETIC (made-up) data only.
 No real household in Bhutan is represented here.
 """
 
+import base64
 import time
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +32,17 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 # ----------------------------------------------------------------------
+# Colour palette
+# ----------------------------------------------------------------------
+
+INK = "#0B0C10"      # page background, near black
+SLATE = "#1F2833"    # cards and panels
+LIGHT = "#C5C6C7"    # body text
+CYAN = "#66FCF1"     # highlight colour
+TEAL = "#45A29E"     # secondary highlight
+CORAL = "#FF6B6B"    # used only for negative model weights
+
+# ----------------------------------------------------------------------
 # Page settings
 # ----------------------------------------------------------------------
 
@@ -40,73 +53,210 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------
+# Background artwork
+#
+# The car photo lives in assets/ev-car.png. CSS cannot point at a local file
+# in a Streamlit app, so the image is read once, turned into base64 text and
+# written straight into the stylesheet below. The CSS then blurs it and fades
+# it back, so it reads as a soft shape behind the page rather than a picture.
+# ----------------------------------------------------------------------
+
+CAR_IMAGE_PATH = Path(__file__).parent / "assets" / "ev-car.png"
+
+
+@st.cache_data
+def load_background_image(path):
+    """Read the car image and return it as a data URI that CSS can use."""
+    try:
+        encoded = base64.b64encode(Path(path).read_bytes()).decode()
+        return f"data:image/png;base64,{encoded}"
+    except FileNotFoundError:
+        # If the image is missing the app still runs, just without the artwork.
+        return ""
+
+
+CAR_IMAGE = load_background_image(CAR_IMAGE_PATH)
+
+# ----------------------------------------------------------------------
 # Styling and animation
 #
-# Streamlit has no built-in way to set these, so a small block of CSS is
-# injected into the page. Each rule is commented below. If a future version
-# of Streamlit renames something, the rule is simply ignored and the app
-# still works, so this is safe to include.
+# Streamlit has no setting for most of this, so a block of CSS is injected
+# into the page. Every rule is commented below. If a future version of
+# Streamlit renames an element, that rule is simply ignored and the app
+# still works, so none of this can break the deployment.
 # ----------------------------------------------------------------------
 
 st.markdown(
-    """
+    f"""
     <style>
-    @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(14px); }
-        to   { opacity: 1; transform: none; }
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700&display=swap');
 
-    /* Slide each tab's content up and fade it in when that tab is opened.
-       Streamlit keeps all four tabs in the page and hides the inactive ones,
-       so the animation replays every time a panel is shown again. */
-    .stTabs [data-baseweb="tab-panel"] {
-        animation: fadeUp 0.4s ease both;
-    }
+    /* ---- Page background -------------------------------------------- */
+    /* Two soft pools of colour over the near-black base. */
+    .stApp {{
+        background:
+            radial-gradient(900px 500px at 12% 8%, rgba(69,162,158,0.20), transparent 60%),
+            radial-gradient(700px 500px at 88% 0%, rgba(102,252,241,0.10), transparent 55%),
+            {INK};
+    }}
 
-    .block-container { padding-top: 2.5rem; }
+    /* The blurred car sits in its own layer behind everything else. */
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("{CAR_IMAGE}");
+        background-repeat: no-repeat;
+        background-position: center 58%;
+        background-size: min(1250px, 96%);
+        filter: blur(14px) saturate(1.15) brightness(1.18);
+        opacity: 0.42;
+        pointer-events: none;   /* clicks pass straight through it */
+        z-index: 0;
+    }}
 
-    /* Give the number cards a soft border and lift them on hover. */
-    div[data-testid="stMetric"] {
-        background: #FFFFFF;
-        border: 1px solid #E3EBE5;
-        border-radius: 10px;
-        padding: 14px 16px;
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
-    }
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 16px rgba(21, 61, 33, 0.10);
-    }
+    /* A dark veil over the car so headings and body text stay readable.
+       It is lighter through the middle, which lets the car show through. */
+    .stApp::after {{
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(180deg,
+            rgba(11,12,16,0.80) 0%,
+            rgba(11,12,16,0.40) 50%,
+            rgba(11,12,16,0.90) 100%);
+        pointer-events: none;
+        z-index: 0;
+    }}
 
-    /* Make the tab labels larger and easier to read. */
-    .stTabs [data-baseweb="tab"] {
-        font-size: 1.02rem;
+    /* Keep the real content above the artwork. */
+    .block-container {{
+        position: relative;
+        z-index: 1;
+        padding-top: 2rem;
+        font-family: 'Inter', sans-serif;
+    }}
+
+    /* ---- Hero banner ------------------------------------------------- */
+    .hero {{ padding: 2.2rem 0 1.2rem 0; }}
+    .hero-kicker {{
+        font-family: 'Inter', sans-serif;
+        font-size: 0.8rem;
         font-weight: 600;
-        padding: 10px 18px;
-    }
+        letter-spacing: 3px;
+        color: {TEAL};
+        margin-bottom: 0.6rem;
+    }}
+    .hero-title {{
+        font-family: 'Anton', Impact, sans-serif;
+        font-size: clamp(3.2rem, 11vw, 8.5rem);
+        line-height: 0.87;
+        color: {CYAN};
+        margin: 0;
+        letter-spacing: -1px;
+        text-shadow: 0 0 60px rgba(102,252,241,0.28);
+    }}
+    .hero-sub {{
+        max-width: 620px;
+        margin-top: 1.4rem;
+        color: {LIGHT};
+        font-size: 1.02rem;
+        line-height: 1.65;
+    }}
+    .hero-rule {{
+        width: 90px;
+        height: 3px;
+        background: {CYAN};
+        margin: 1.6rem 0 0.4rem 0;
+    }}
 
-    /* Tighten the heading spacing so sections sit closer together. */
-    h1 { letter-spacing: -0.6px; }
-    h2, h3 { margin-top: 0.4rem; }
+    /* ---- Fade in ----------------------------------------------------- */
+    @keyframes fadeUp {{
+        from {{ opacity: 0; transform: translateY(14px); }}
+        to   {{ opacity: 1; transform: none; }}
+    }}
+    /* Streamlit keeps all four tabs in the page and hides the inactive
+       ones, so this animation replays each time a panel is shown again. */
+    .stTabs [data-baseweb="tab-panel"] {{ animation: fadeUp 0.4s ease both; }}
+    .hero {{ animation: fadeUp 0.7s ease both; }}
+
+    /* ---- Tabs -------------------------------------------------------- */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 4px;
+        border-bottom: 1px solid rgba(197,198,199,0.14);
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        padding: 12px 20px;
+        color: {LIGHT};
+    }}
+    .stTabs [aria-selected="true"] {{ color: {CYAN} !important; }}
+
+    /* ---- Number cards ------------------------------------------------ */
+    div[data-testid="stMetric"] {{
+        background: rgba(31,40,51,0.72);
+        border: 1px solid rgba(102,252,241,0.16);
+        border-radius: 12px;
+        padding: 16px 18px;
+        transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }}
+    div[data-testid="stMetric"]:hover {{
+        transform: translateY(-4px);
+        border-color: {CYAN};
+        box-shadow: 0 10px 28px rgba(102,252,241,0.14);
+    }}
+    div[data-testid="stMetricValue"] {{ color: {CYAN}; }}
+
+    /* ---- Bordered containers ----------------------------------------- */
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        border-radius: 12px;
+    }}
+
+    /* ---- Headings and text ------------------------------------------- */
+    h1, h2, h3 {{ color: #FFFFFF; letter-spacing: -0.4px; }}
+    h2, h3 {{ margin-top: 0.4rem; }}
+    a {{ color: {CYAN} !important; }}
 
     /* Hide the default Streamlit footer for a cleaner page. */
-    footer { visibility: hidden; }
+    footer {{ visibility: hidden; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-sns.set_style("whitegrid")
+# ----------------------------------------------------------------------
+# Chart styling
+#
+# The charts are drawn by matplotlib, which defaults to a white background.
+# On a dark page that would show up as white boxes, so the figures are made
+# transparent and the text and gridlines are switched to the palette.
+# ----------------------------------------------------------------------
+
+plt.rcParams.update(
+    {
+        "figure.facecolor": "none",
+        "axes.facecolor": "none",
+        "savefig.facecolor": "none",
+        "savefig.transparent": True,
+        "text.color": LIGHT,
+        "axes.labelcolor": LIGHT,
+        "axes.titlecolor": "#FFFFFF",
+        "axes.edgecolor": "#2A3642",
+        "xtick.color": LIGHT,
+        "ytick.color": LIGHT,
+        "grid.color": "#1A232D",
+        "axes.grid": True,
+        "font.size": 10,
+    }
+)
 
 RANDOM_SEED = 42
 N_RECORDS = 800
 TARGET_NAME = "ev_adoption"
 POSITIVE_LABEL = "Likely to adopt"
 NEGATIVE_LABEL = "Not likely yet"
-
-GREEN = "#2E7D32"
-GREY = "#B0BEC5"
-RED = "#C62828"
 
 DZONGKHAGS = [
     "Thimphu",
@@ -346,18 +496,33 @@ def coefficient_table(model):
 # ----------------------------------------------------------------------
 # Load everything once
 #
-# st.spinner shows a small rotating indicator while this runs. Because both
-# functions above are cached, this only appears the first time the app opens.
+# st.spinner shows a rotating indicator while this runs. Because both
+# functions are cached, it only appears the first time the app opens.
 # ----------------------------------------------------------------------
 
 with st.spinner("Building the fictional dataset and training the model..."):
     df = generate_dataset()
     pipeline, results = train_model(df)
 
-st.title("🔌 Electric Vehicle Adoption in Bhutan")
-st.caption(
-    "A student project using fictional data. It explores which household factors "
-    "might relate to interest in switching to an electric vehicle."
+# ----------------------------------------------------------------------
+# Hero banner
+# ----------------------------------------------------------------------
+
+st.markdown(
+    """
+    <div class="hero">
+        <div class="hero-kicker">BHUTAN &nbsp;·&nbsp; MACHINE LEARNING PROJECT</div>
+        <h1 class="hero-title">GOING<br>ELECTRIC</h1>
+        <div class="hero-rule"></div>
+        <p class="hero-sub">
+            Bhutan runs on hydropower but imports every litre of fuel it burns.
+            This project asks which households are most likely to make the switch
+            to an electric vehicle &mdash; and builds a small machine learning
+            model to find out. All data shown here is fictional.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 tab_overview, tab_explore, tab_predict, tab_results = st.tabs(
@@ -473,14 +638,14 @@ with tab_explore:
     with chart_left:
         fig, ax = plt.subplots(figsize=(6, 4))
         if chosen in NUMERIC_FEATURES:
-            sns.histplot(df[chosen].dropna(), bins=25, kde=True, color=GREEN, ax=ax)
+            sns.histplot(df[chosen].dropna(), bins=25, kde=True, color=CYAN, ax=ax)
         else:
             order = df[chosen].value_counts().index
-            sns.countplot(y=df[chosen], order=order, color=GREEN, ax=ax)
+            sns.countplot(y=df[chosen], order=order, color=CYAN, ax=ax)
         ax.set_title(f"Distribution of {READABLE_NAMES[chosen]}")
         ax.set_xlabel(READABLE_NAMES[chosen] if chosen in NUMERIC_FEATURES else "Households")
         ax.set_ylabel("Households" if chosen in NUMERIC_FEATURES else "")
-        st.pyplot(fig)
+        st.pyplot(fig, transparent=True)
         plt.close(fig)
 
     with chart_right:
@@ -492,7 +657,7 @@ with tab_explore:
                 y=chosen,
                 hue=TARGET_NAME,
                 order=[NEGATIVE_LABEL, POSITIVE_LABEL],
-                palette=[GREY, GREEN],
+                palette=[TEAL, CYAN],
                 legend=False,
                 ax=ax,
             )
@@ -505,11 +670,11 @@ with tab_explore:
                 .apply(lambda s: (s == POSITIVE_LABEL).mean())
                 .sort_values()
             )
-            sns.barplot(x=rate.to_numpy(), y=rate.index.astype(str), color=GREEN, ax=ax)
+            sns.barplot(x=rate.to_numpy(), y=rate.index.astype(str), color=CYAN, ax=ax)
             ax.set_title(f"Share likely to adopt, by {READABLE_NAMES[chosen].lower()}")
             ax.set_xlabel("Share likely to adopt")
             ax.set_ylabel("")
-        st.pyplot(fig)
+        st.pyplot(fig, transparent=True)
         plt.close(fig)
 
     st.divider()
@@ -655,15 +820,18 @@ with tab_results:
             results["confusion"],
             annot=True,
             fmt="d",
-            cmap="Greens",
+            cmap="mako",
             cbar=False,
+            linewidths=1,
+            linecolor=INK,
             xticklabels=[NEGATIVE_LABEL, POSITIVE_LABEL],
             yticklabels=[NEGATIVE_LABEL, POSITIVE_LABEL],
             ax=ax,
         )
         ax.set_xlabel("Model predicted")
         ax.set_ylabel("Actual label")
-        st.pyplot(fig)
+        ax.grid(False)
+        st.pyplot(fig, transparent=True)
         plt.close(fig)
         st.caption(
             "Numbers on the diagonal are correct predictions. The top-right cell is "
@@ -685,13 +853,13 @@ with tab_results:
     top_weights = pd.concat([weights.head(8), weights.tail(8)])
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    colours = [GREEN if w >= 0 else RED for w in top_weights["weight"]]
+    colours = [CYAN if w >= 0 else CORAL for w in top_weights["weight"]]
     ax.barh(top_weights["feature"], top_weights["weight"], color=colours)
-    ax.axvline(0, color="black", linewidth=0.8)
+    ax.axvline(0, color=LIGHT, linewidth=0.8)
     ax.set_xlabel("Logistic regression weight")
-    ax.set_title("Strongest pushes towards (green) and against (red) adoption")
+    ax.set_title("Strongest pushes towards (cyan) and against (red) adoption")
     ax.invert_yaxis()
-    st.pyplot(fig)
+    st.pyplot(fig, transparent=True)
     plt.close(fig)
 
     st.caption(
