@@ -6,6 +6,8 @@ IMPORTANT: this app uses SYNTHETIC (made-up) data only.
 No real household in Bhutan is represented here.
 """
 
+import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -37,6 +39,59 @@ st.set_page_config(
     layout="wide",
 )
 
+# ----------------------------------------------------------------------
+# Styling and animation
+#
+# Streamlit has no built-in way to set these, so a small block of CSS is
+# injected into the page. Each rule is commented below. If a future version
+# of Streamlit renames something, the rule is simply ignored and the app
+# still works, so this is safe to include.
+# ----------------------------------------------------------------------
+
+st.markdown(
+    """
+    <style>
+    /* Slide the page content up and fade it in when a tab is opened. */
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: none; }
+    }
+    .block-container {
+        animation: fadeUp 0.45s ease both;
+        padding-top: 2.5rem;
+    }
+
+    /* Give the number cards a soft border and lift them on hover. */
+    div[data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid #E3EBE5;
+        border-radius: 10px;
+        padding: 14px 16px;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(21, 61, 33, 0.10);
+    }
+
+    /* Make the tab labels larger and easier to read. */
+    .stTabs [data-baseweb="tab"] {
+        font-size: 1.02rem;
+        font-weight: 600;
+        padding: 10px 18px;
+    }
+
+    /* Tighten the heading spacing so sections sit closer together. */
+    h1 { letter-spacing: -0.6px; }
+    h2, h3 { margin-top: 0.4rem; }
+
+    /* Hide the default Streamlit footer for a cleaner page. */
+    footer { visibility: hidden; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 sns.set_style("whitegrid")
 
 RANDOM_SEED = 42
@@ -44,6 +99,10 @@ N_RECORDS = 800
 TARGET_NAME = "ev_adoption"
 POSITIVE_LABEL = "Likely to adopt"
 NEGATIVE_LABEL = "Not likely yet"
+
+GREEN = "#2E7D32"
+GREY = "#B0BEC5"
+RED = "#C62828"
 
 DZONGKHAGS = [
     "Thimphu",
@@ -282,10 +341,14 @@ def coefficient_table(model):
 
 # ----------------------------------------------------------------------
 # Load everything once
+#
+# st.spinner shows a small rotating indicator while this runs. Because both
+# functions above are cached, this only appears the first time the app opens.
 # ----------------------------------------------------------------------
 
-df = generate_dataset()
-pipeline, results = train_model(df)
+with st.spinner("Building the fictional dataset and training the model..."):
+    df = generate_dataset()
+    pipeline, results = train_model(df)
 
 st.title("🔌 Electric Vehicle Adoption in Bhutan")
 st.caption(
@@ -330,9 +393,10 @@ This app asks a simple version of that question:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("What the model uses")
-        st.markdown(
-            """
+        with st.container(border=True):
+            st.subheader("What the model uses")
+            st.markdown(
+                """
 **Numeric inputs**
 - Age of the main driver
 - Daily commute distance (km)
@@ -348,13 +412,14 @@ This app asks a simple version of that question:
 - Terrain around the home
 - Awareness of the EV subsidy
 - Whether a second vehicle is owned
-            """
-        )
+                """
+            )
 
     with right:
-        st.subheader("How it was built")
-        st.markdown(
-            f"""
+        with st.container(border=True):
+            st.subheader("How it was built")
+            st.markdown(
+                f"""
 1. Generate {N_RECORDS} fictional households with a fixed seed ({RANDOM_SEED}),
    so the results are the same every time the app runs.
 2. Score each household with a weighted rule, add random noise, and label the
@@ -365,8 +430,8 @@ This app asks a simple version of that question:
 5. Fill gaps, scale numbers, one-hot encode categories, then fit a logistic
    regression.
 6. Score the model on the held-out test set.
-            """
-        )
+                """
+            )
 
     st.subheader("An honest limitation")
     st.info(
@@ -404,10 +469,10 @@ with tab_explore:
     with chart_left:
         fig, ax = plt.subplots(figsize=(6, 4))
         if chosen in NUMERIC_FEATURES:
-            sns.histplot(df[chosen].dropna(), bins=25, kde=True, color="#2E7D32", ax=ax)
+            sns.histplot(df[chosen].dropna(), bins=25, kde=True, color=GREEN, ax=ax)
         else:
             order = df[chosen].value_counts().index
-            sns.countplot(y=df[chosen], order=order, color="#2E7D32", ax=ax)
+            sns.countplot(y=df[chosen], order=order, color=GREEN, ax=ax)
         ax.set_title(f"Distribution of {READABLE_NAMES[chosen]}")
         ax.set_xlabel(READABLE_NAMES[chosen] if chosen in NUMERIC_FEATURES else "Households")
         ax.set_ylabel("Households" if chosen in NUMERIC_FEATURES else "")
@@ -423,7 +488,7 @@ with tab_explore:
                 y=chosen,
                 hue=TARGET_NAME,
                 order=[NEGATIVE_LABEL, POSITIVE_LABEL],
-                palette=["#B0BEC5", "#2E7D32"],
+                palette=[GREY, GREEN],
                 legend=False,
                 ax=ax,
             )
@@ -436,7 +501,7 @@ with tab_explore:
                 .apply(lambda s: (s == POSITIVE_LABEL).mean())
                 .sort_values()
             )
-            sns.barplot(x=rate.to_numpy(), y=rate.index.astype(str), color="#2E7D32", ax=ax)
+            sns.barplot(x=rate.to_numpy(), y=rate.index.astype(str), color=GREEN, ax=ax)
             ax.set_title(f"Share likely to adopt, by {READABLE_NAMES[chosen].lower()}")
             ax.set_xlabel("Share likely to adopt")
             ax.set_ylabel("")
@@ -450,7 +515,7 @@ with tab_explore:
         df.groupby(TARGET_NAME, observed=True)[NUMERIC_FEATURES].mean().round(1).T
     )
     numeric_summary.index = [READABLE_NAMES[name] for name in numeric_summary.index]
-    st.dataframe(numeric_summary, width="stretch")
+    st.dataframe(numeric_summary)
 
     st.caption(
         "Households labelled likely to adopt tend to drive shorter distances but "
@@ -466,7 +531,7 @@ with tab_explore:
         horizontal=True,
     )
     table = df if show_only == "All households" else df[df[TARGET_NAME] == show_only]
-    st.dataframe(table.head(100), width="stretch")
+    st.dataframe(table.head(100))
     st.caption(f"Showing the first {min(100, len(table))} of {len(table)} fictional rows.")
 
 # ----------------------------------------------------------------------
@@ -539,7 +604,15 @@ with tab_predict:
         st.metric("Estimated probability of adopting", f"{probability:.1%}")
 
     with result_right:
-        st.progress(min(max(probability, 0.0), 1.0))
+        # Fill the bar in small steps so the result animates into place.
+        # The whole loop takes well under half a second.
+        target_percent = int(round(probability * 100))
+        progress_bar = st.progress(0)
+        for filled in range(0, target_percent + 1, 4):
+            progress_bar.progress(filled / 100)
+            time.sleep(0.008)
+        progress_bar.progress(target_percent / 100)
+
         st.caption(
             "The bar shows the model's estimated probability. Anything at or above "
             "50% is reported as likely to adopt."
@@ -608,7 +681,7 @@ with tab_results:
     top_weights = pd.concat([weights.head(8), weights.tail(8)])
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    colours = ["#2E7D32" if w >= 0 else "#C62828" for w in top_weights["weight"]]
+    colours = [GREEN if w >= 0 else RED for w in top_weights["weight"]]
     ax.barh(top_weights["feature"], top_weights["weight"], color=colours)
     ax.axvline(0, color="black", linewidth=0.8)
     ax.set_xlabel("Logistic regression weight")
@@ -623,4 +696,4 @@ with tab_results:
     )
 
     with st.expander("See every weight"):
-        st.dataframe(weights, width="stretch")
+        st.dataframe(weights)
