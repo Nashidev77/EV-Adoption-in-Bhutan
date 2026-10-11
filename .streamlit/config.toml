@@ -1,0 +1,9 @@
+# Colour theme for the whole app.
+# Streamlit reads this file automatically; there is nothing to import.
+
+[theme]
+primaryColor = "#2E7D32"              # buttons, sliders, selected tab
+backgroundColor = "#FFFFFF"           # main page background
+secondaryBackgroundColor = "#F2F7F3"  # cards, sidebar, table headers
+textColor = "#17241B"                 # body text
+font = "sans serif"
